@@ -7,5 +7,5 @@ isort==6.0.1
 bandit==1.8.3
 safety==3.3.1
 mypy==1.15.0
-sphinx==8.2.3
+sphinx==9.1.0
 furo==2024.8.6
