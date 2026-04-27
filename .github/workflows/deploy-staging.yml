@@ -1,0 +1,57 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches: [staging]
+
+jobs:
+  ci:
+    name: Run CI
+    uses: ./.github/workflows/ci.yml
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Simulate staging deployment
+        run: |
+          echo "========================================="
+          echo "  DEPLOYING TO STAGING ENVIRONMENT"
+          echo "========================================="
+          echo "Branch: staging"
+          echo "Commit: ${{ github.sha }}"
+          echo "Deployer: ${{ github.actor }}"
+          echo ""
+          echo "[1/4] Building application..."
+          python -c "from app import create_app; app = create_app('staging'); print('  App created successfully')"
+          echo "[2/4] Running smoke test..."
+          python -c "
+          from app import create_app
+          app = create_app('staging')
+          client = app.test_client()
+          r = client.get('/health')
+          assert r.status_code == 200
+          print('  Health check passed')
+          "
+          echo "[3/4] Simulating deploy to staging server..."
+          sleep 2
+          echo "  Deploy complete"
+          echo "[4/4] Post-deploy verification..."
+          echo "  All checks passed"
+          echo ""
+          echo "========================================="
+          echo "  STAGING DEPLOYMENT SUCCESSFUL"
+          echo "========================================="

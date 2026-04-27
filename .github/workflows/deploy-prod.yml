@@ -1,0 +1,59 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  ci:
+    name: Run CI
+    uses: ./.github/workflows/ci.yml
+
+  deploy-production:
+    name: Deploy to Production
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Simulate production deployment
+        run: |
+          echo "========================================="
+          echo "  DEPLOYING TO PRODUCTION ENVIRONMENT"
+          echo "========================================="
+          echo "Branch: main"
+          echo "Commit: ${{ github.sha }}"
+          echo "Deployer: ${{ github.actor }}"
+          echo ""
+          echo "[1/5] Building application..."
+          python -c "from app import create_app; app = create_app('production'); print('  App created successfully')"
+          echo "[2/5] Running smoke test..."
+          python -c "
+          from app import create_app
+          app = create_app('production')
+          client = app.test_client()
+          r = client.get('/health')
+          assert r.status_code == 200
+          print('  Health check passed')
+          "
+          echo "[3/5] Creating deployment backup..."
+          echo "  Backup created: backup-${{ github.sha }}"
+          echo "[4/5] Simulating deploy to production server..."
+          sleep 2
+          echo "  Deploy complete"
+          echo "[5/5] Post-deploy verification..."
+          echo "  All checks passed"
+          echo ""
+          echo "========================================="
+          echo "  PRODUCTION DEPLOYMENT SUCCESSFUL"
+          echo "========================================="
