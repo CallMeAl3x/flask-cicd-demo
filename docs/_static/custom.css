@@ -1,0 +1,23 @@
+.sidebar-brand-text {
+    font-weight: 700;
+}
+
+.api-doc-section {
+    margin-top: 2rem;
+    padding: 1.5rem;
+    border-radius: 8px;
+    background: var(--color-background-secondary);
+}
+
+dt.sig {
+    border-radius: 6px !important;
+    padding: 0.5rem 0.75rem !important;
+}
+
+.admonition {
+    border-radius: 8px !important;
+}
+
+.highlight pre {
+    border-radius: 6px !important;
+}
