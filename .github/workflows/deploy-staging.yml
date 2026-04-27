@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: Trigger Coolify webhook
         run: |
-          curl -sf "${{ secrets.COOLIFY_STAGING_WEBHOOK }}" \
+          curl -sf "${{ secrets.COOLIFY_WEBHOOK_STAGING }}" \
             -o /dev/null -w "HTTP %{http_code}"
           echo ""
           echo "Coolify staging deploy triggered for ${{ github.sha }}"
