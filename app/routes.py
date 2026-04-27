@@ -1,3 +1,5 @@
+"""API routes for task management."""
+
 from typing import Any
 
 from flask import Blueprint, jsonify, request

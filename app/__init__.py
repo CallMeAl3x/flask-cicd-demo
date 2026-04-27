@@ -1,7 +1,9 @@
+"""Flask CI/CD Demo application."""
+
 from flask import Flask
 
 
-def create_app(config_name="production"):
+def create_app(config_name: str = "production") -> Flask:
     app = Flask(__name__)
 
     configs = {
