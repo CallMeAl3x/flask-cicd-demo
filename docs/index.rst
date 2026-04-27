@@ -1,25 +1,17 @@
 Flask CI/CD Demo
 ================
 
-A simple Flask REST API with a complete CI/CD pipeline using GitHub Actions.
-
 .. note::
-   This documentation is **auto-generated** from the source code using Sphinx autodoc.
-
-Overview
---------
-
-**Stack**: Flask, Docker, Gunicorn, pytest (98% coverage)
-
-**CI/CD**: GitHub Actions with staging and production auto-deploy
+   This documentation is **entirely auto-generated** from the Python source code
+   docstrings using Sphinx autodoc. No content is written manually.
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents
+   :maxdepth: 3
+   :caption: API Reference
 
-   architecture
-   api
-   deployment
+   app
+   config
+   routes
 
 Indices
 -------

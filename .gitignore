@@ -14,3 +14,4 @@ htmlcov/
 coverage.xml
 .coverage
 *.log
+docs/_build/
