@@ -1,8 +1,10 @@
+from typing import Any
+
 from flask import Blueprint, jsonify, request
 
 api = Blueprint("api", __name__)
 
-TASKS = []
+TASKS: list[dict[str, Any]] = []
 
 
 @api.route("/")
