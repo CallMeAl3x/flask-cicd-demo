@@ -1,4 +1,4 @@
-FROM python:3.12-slim AS builder
+FROM python:3.14-slim AS builder
 
 WORKDIR /app
 COPY requirements.txt requirements-dev.txt ./
@@ -6,7 +6,7 @@ RUN pip install --no-cache-dir -r requirements-dev.txt
 COPY . .
 RUN sphinx-build -b html docs/ docs/_build/html
 
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 COPY requirements.txt .
