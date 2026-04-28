@@ -4,27 +4,28 @@ Routes
 
 REST API endpoints for task management.
 
-All endpoints return JSON responses. Tasks are stored in memory
-(no database) for simplicity.
+All API endpoints are prefixed with ``/api`` and return JSON responses.
+Tasks are stored in memory (no database) for simplicity.
 
 Endpoints summary
 -----------------
 
-====== ================== ==========================
-Method Endpoint           Description
-====== ================== ==========================
-GET    ``/``              API information
-GET    ``/health``        Health check
-GET    ``/tasks``         List all tasks
-POST   ``/tasks``         Create a new task
-PUT    ``/tasks/<id>``    Update an existing task
-DELETE ``/tasks/<id>``    Delete a task
-====== ================== ==========================
+====== ===================== ==========================
+Method Endpoint              Description
+====== ===================== ==========================
+GET    ``/``                 Landing page (HTML)
+GET    ``/health``           Health check
+GET    ``/api/tasks``        List all tasks
+POST   ``/api/tasks``        Create a new task
+PUT    ``/api/tasks/<id>``   Update an existing task
+DELETE ``/api/tasks/<id>``   Delete a task
+====== ===================== ==========================
 """
 
+import os
 from typing import Any
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, jsonify, render_template, request, send_from_directory
 
 api = Blueprint("api", __name__)
 
@@ -34,13 +35,13 @@ TASKS: list[dict[str, Any]] = []
 
 
 @api.route("/")
-def index() -> Response:
-    """Return API information and current status.
+def index() -> str:
+    """Render the landing page with live task demo.
 
-    :returns: JSON with ``message`` and ``status`` fields.
-    :status 200: Always.
+    :returns: HTML page.
     """
-    return jsonify({"message": "Flask CI/CD Demo API", "status": "running"})
+    config_name = os.environ.get("FLASK_ENV", "production").capitalize()
+    return render_template("index.html", config_name=config_name)
 
 
 @api.route("/health")
@@ -56,7 +57,22 @@ def health() -> Response:
     return jsonify({"status": "healthy"})
 
 
-@api.route("/tasks", methods=["GET"])
+@api.route("/docs/")
+@api.route("/docs/<path:filename>")
+def docs(filename: str = "index.html") -> Response:
+    """Serve the Sphinx auto-generated documentation.
+
+    The documentation is built during the Docker image build
+    and served as static files.
+
+    :param filename: Path to the documentation file.
+    :returns: The requested documentation page.
+    """
+    docs_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "docs", "_build", "html")
+    return send_from_directory(docs_dir, filename)
+
+
+@api.route("/api/tasks", methods=["GET"])
 def get_tasks() -> Response:
     """List all tasks.
 
@@ -66,7 +82,7 @@ def get_tasks() -> Response:
     return jsonify({"tasks": TASKS, "count": len(TASKS)})
 
 
-@api.route("/tasks", methods=["POST"])
+@api.route("/api/tasks", methods=["POST"])
 def create_task() -> tuple[Response, int]:
     """Create a new task.
 
@@ -93,7 +109,7 @@ def create_task() -> tuple[Response, int]:
     return jsonify(task), 201
 
 
-@api.route("/tasks/<int:task_id>", methods=["PUT"])
+@api.route("/api/tasks/<int:task_id>", methods=["PUT"])
 def update_task(task_id: int) -> tuple[Response, int] | Response:
     """Update an existing task.
 
@@ -118,7 +134,7 @@ def update_task(task_id: int) -> tuple[Response, int] | Response:
     return jsonify(task)
 
 
-@api.route("/tasks/<int:task_id>", methods=["DELETE"])
+@api.route("/api/tasks/<int:task_id>", methods=["DELETE"])
 def delete_task(task_id: int) -> tuple[Response, int]:
     """Delete a task.
 
