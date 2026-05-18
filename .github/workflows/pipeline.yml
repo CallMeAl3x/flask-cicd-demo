@@ -1,0 +1,214 @@
+name: Pipeline
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+jobs:
+  lint:
+    name: Code Quality
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-python
+
+      - name: Black (formatting)
+        run: black --check .
+
+      - name: isort (import order)
+        run: isort --check-only .
+
+      - name: Flake8 (linting)
+        run: flake8 app/ tests/ --max-line-length=88 --extend-ignore=E203
+
+      - name: Mypy (type checking)
+        run: mypy app/
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-python
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Run tests with coverage
+        run: pytest
+
+      - name: Upload coverage report
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+  security:
+    name: Security Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-python
+
+      - name: Bandit (security linter)
+        run: bandit -r app/ -f json -o bandit-report.json || true
+
+      - name: Bandit report
+        run: bandit -r app/
+
+      - name: Upload security report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+          if-no-files-found: ignore
+
+  trivy:
+    name: Trivy Container Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker image
+        run: docker build -t app:${{ github.sha }} .
+
+      - name: Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: app:${{ github.sha }}
+          format: table
+          severity: CRITICAL,HIGH
+
+  docs:
+    name: Build Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup-python
+
+      - name: Build Sphinx documentation
+        run: sphinx-build -b html docs/ docs/_build/html -W
+
+      - name: Upload documentation artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: documentation
+          path: docs/_build/html/
+
+  report:
+    name: Pipeline Report
+    needs: [lint, test, security, trivy, docs]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download coverage report
+        uses: actions/download-artifact@v4
+        with:
+          name: coverage-report
+          path: artifacts/coverage
+        continue-on-error: true
+
+      - name: Download security report
+        uses: actions/download-artifact@v4
+        with:
+          name: bandit-report
+          path: artifacts/security
+        continue-on-error: true
+
+      - name: Build summary
+        env:
+          R_LINT: ${{ needs.lint.result }}
+          R_TEST: ${{ needs.test.result }}
+          R_SECURITY: ${{ needs.security.result }}
+          R_TRIVY: ${{ needs.trivy.result }}
+          R_DOCS: ${{ needs.docs.result }}
+        run: |
+          icon() { case "$1" in
+            success) echo "✅ success" ;;
+            failure) echo "❌ failure" ;;
+            skipped) echo "⏭️ skipped" ;;
+            *) echo "⚠️ $1" ;;
+          esac; }
+
+          {
+            echo "# 📊 Pipeline Report"
+            echo ""
+            echo "Commit: \`${{ github.sha }}\` on \`${{ github.ref_name }}\`"
+            echo ""
+            echo "## Job results"
+            echo ""
+            echo "| Stage | Result |"
+            echo "| --- | --- |"
+            echo "| Code Quality | $(icon "$R_LINT") |"
+            echo "| Tests | $(icon "$R_TEST") |"
+            echo "| Security Scan | $(icon "$R_SECURITY") |"
+            echo "| Trivy Container Scan | $(icon "$R_TRIVY") |"
+            echo "| Build Docs | $(icon "$R_DOCS") |"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          COV_FILE=artifacts/coverage/coverage.xml
+          if [ -f "$COV_FILE" ]; then
+            RATE=$(grep -o 'line-rate="[0-9.]*"' "$COV_FILE" | head -1 | grep -o '[0-9.]*')
+            PCT=$(python3 -c "print(f'{float('$RATE')*100:.1f}')")
+            {
+              echo "## 🧪 Test coverage"
+              echo ""
+              echo "**Line coverage: ${PCT}%**"
+              echo ""
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          SEC_FILE=artifacts/security/bandit-report.json
+          if [ -f "$SEC_FILE" ]; then
+            COUNT=$(python3 -c "import json;print(len(json.load(open('$SEC_FILE')).get('results',[])))")
+            {
+              echo "## 🔒 Security (Bandit)"
+              echo ""
+              echo "**Findings: ${COUNT}**"
+              echo ""
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Fail if any required stage failed
+        if: contains(needs.*.result, 'failure')
+        run: |
+          echo "One or more pipeline stages failed — see the report above."
+          exit 1
+
+  deploy-staging:
+    name: Deploy to Staging
+    needs: [lint, test, security, trivy]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Trigger Coolify webhook
+        run: |
+          HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_API_TOKEN }}" \
+            "${{ secrets.COOLIFY_WEBHOOK_STAGING }}")
+          echo "HTTP $HTTP_CODE"
+          echo "Coolify staging deploy triggered for ${{ github.sha }}"
+
+  deploy-production:
+    name: Deploy to Production
+    needs: [lint, test, security, trivy]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Trigger Coolify webhook
+        run: |
+          HTTP_CODE=$(curl -sf -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_API_TOKEN }}" \
+            "${{ secrets.COOLIFY_PROD_WEBHOOK }}")
+          echo "HTTP $HTTP_CODE"
+          echo "Coolify production deploy triggered for ${{ github.sha }}"

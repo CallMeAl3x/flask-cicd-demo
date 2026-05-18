@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flask CI/CD Demo</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: #fafafa;
+            color: #1a1a1a;
+            min-height: 100vh;
+        }
+
+        nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            max-width: 960px;
+            margin: 0 auto;
+            padding: 1.25rem 1.5rem;
+        }
+        .nav-left {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-weight: 700;
+            font-size: 0.95rem;
+        }
+        .nav-logo {
+            width: 28px;
+            height: 28px;
+            background: #111;
+            border-radius: 7px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .nav-logo svg { width: 16px; height: 16px; }
+        .nav-links { display: flex; gap: 1.5rem; }
+        .nav-links a {
+            color: #666;
+            text-decoration: none;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: color 0.15s;
+        }
+        .nav-links a:hover { color: #111; }
+
+        .container { max-width: 960px; margin: 0 auto; padding: 0 1.5rem; }
+
+        .hero {
+            text-align: center;
+            padding: 4rem 0 3rem;
+        }
+        .hero h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            letter-spacing: -0.03em;
+            line-height: 1.15;
+            color: #111;
+        }
+        .hero p {
+            color: #666;
+            margin-top: 0.6rem;
+            font-size: 1rem;
+        }
+        .hero-badges {
+            display: flex;
+            gap: 0.5rem;
+            justify-content: center;
+            margin-top: 1.25rem;
+        }
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 12px;
+            border-radius: 999px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            border: 1px solid #e5e5e5;
+            background: #fff;
+            color: #444;
+        }
+        .badge-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+        .badge-green .badge-dot { background: #22c55e; }
+        .badge-blue .badge-dot { background: #3b82f6; }
+
+        .pipeline {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0;
+            margin: 2rem 0;
+        }
+        .pipe-step {
+            padding: 6px 16px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: #555;
+            background: #fff;
+            border: 1px solid #e5e5e5;
+        }
+        .pipe-step:first-child { border-radius: 8px 0 0 8px; }
+        .pipe-step:last-child { border-radius: 0 8px 8px 0; }
+        .pipe-step + .pipe-step { border-left: none; }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            margin-bottom: 2.5rem;
+        }
+        @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+
+        .card {
+            background: #fff;
+            border: 1px solid #e5e5e5;
+            border-radius: 12px;
+            padding: 1.25rem;
+            transition: border-color 0.15s, box-shadow 0.15s;
+        }
+        .card:hover {
+            border-color: #ccc;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+        }
+        .card-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 0.75rem;
+        }
+        .card-icon svg { width: 16px; height: 16px; }
+        .icon-docs { background: #eff6ff; color: #3b82f6; }
+        .icon-ci { background: #f0fdf4; color: #22c55e; }
+        .icon-code { background: #faf5ff; color: #a855f7; }
+        .card h3 { font-size: 0.9rem; font-weight: 600; margin-bottom: 0.3rem; }
+        .card p { color: #666; font-size: 0.8rem; line-height: 1.5; }
+        .card a {
+            display: inline-block;
+            margin-top: 0.6rem;
+            color: #111;
+            text-decoration: none;
+            font-size: 0.8rem;
+            font-weight: 600;
+            transition: color 0.15s;
+        }
+        .card a:hover { color: #3b82f6; }
+
+        .section-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #999;
+            margin-bottom: 0.4rem;
+        }
+        h2 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            margin-bottom: 0.75rem;
+        }
+
+        .endpoints {
+            background: #fff;
+            border: 1px solid #e5e5e5;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 2.5rem;
+        }
+        .endpoint {
+            display: grid;
+            grid-template-columns: 72px 1fr auto;
+            align-items: center;
+            padding: 0.7rem 1rem;
+            border-bottom: 1px solid #f0f0f0;
+            gap: 0.75rem;
+        }
+        .endpoint:last-child { border-bottom: none; }
+        .tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 5px;
+            text-align: center;
+        }
+        .tag-get { background: #f0fdf4; color: #16a34a; }
+        .tag-post { background: #eff6ff; color: #2563eb; }
+        .tag-put { background: #fefce8; color: #ca8a04; }
+        .tag-delete { background: #fef2f2; color: #dc2626; }
+        .endpoint-path {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.82rem;
+        }
+        .endpoint-desc { color: #999; font-size: 0.78rem; }
+
+        .demo {
+            background: #fff;
+            border: 1px solid #e5e5e5;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 2.5rem;
+        }
+        .input-row {
+            display: flex;
+            gap: 0.5rem;
+        }
+        .input-row input {
+            flex: 1;
+            padding: 0.55rem 0.75rem;
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 0.85rem;
+            outline: none;
+            transition: border-color 0.15s;
+            background: #fafafa;
+        }
+        .input-row input:focus { border-color: #999; }
+        .input-row input::placeholder { color: #bbb; }
+
+        .btn {
+            padding: 0.55rem 1.1rem;
+            border-radius: 8px;
+            border: none;
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 0.82rem;
+            background: #111;
+            color: #fff;
+            transition: background 0.15s;
+        }
+        .btn:hover { background: #333; }
+
+        .btn-sm {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            border: 1px solid #e5e5e5;
+            background: #fff;
+            font-family: 'Inter', sans-serif;
+            font-weight: 500;
+            cursor: pointer;
+            color: #555;
+            transition: all 0.15s;
+        }
+        .btn-sm:hover { background: #f5f5f5; }
+        .btn-done { color: #16a34a; border-color: #bbf7d0; }
+        .btn-done:hover { background: #f0fdf4; }
+        .btn-del { color: #dc2626; border-color: #fecaca; }
+        .btn-del:hover { background: #fef2f2; }
+
+        #task-list { list-style: none; margin-top: 0.75rem; }
+        #task-list li {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.55rem 0.6rem;
+            margin-top: 0.35rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            border: 1px solid #f0f0f0;
+        }
+        .task-id {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            color: #bbb;
+        }
+        .task-title { flex: 1; margin: 0 0.6rem; }
+        .task-done { text-decoration: line-through; color: #bbb; }
+        .task-actions { display: flex; gap: 0.25rem; }
+        .empty-state {
+            text-align: center;
+            padding: 1.5rem;
+            color: #bbb;
+            font-size: 0.85rem;
+        }
+
+        .count {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.7rem;
+            color: #999;
+            font-weight: 400;
+            margin-left: 0.4rem;
+        }
+
+        footer {
+            text-align: center;
+            padding: 2rem 0;
+            color: #bbb;
+            font-size: 0.75rem;
+        }
+        footer a { color: #666; text-decoration: none; }
+        footer a:hover { color: #111; }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="nav-left">
+            <div class="nav-logo">
+                <svg fill="none" viewBox="0 0 24 24" stroke="white" stroke-width="2.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+            </div>
+            Flask CI/CD
+        </div>
+        <div class="nav-links">
+            <a href="/docs/">Docs</a>
+            <a href="https://github.com/CallMeAl3x/flask-cicd-demo/actions" target="_blank">Pipeline</a>
+            <a href="https://github.com/CallMeAl3x/flask-cicd-demo" target="_blank">GitHub</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="hero">
+            <h1>Task Management API</h1>
+            <p>Flask REST API with automated CI/CD pipeline</p>
+            <div class="hero-badges">
+                <span class="badge badge-green"><span class="badge-dot"></span> Healthy</span>
+                <span class="badge badge-blue"><span class="badge-dot"></span> {{ config_name }}</span>
+                <span class="badge">v1.0.0</span>
+            </div>
+        </div>
+
+        <div class="pipeline">
+            <div class="pipe-step">Push</div>
+            <div class="pipe-step">Lint</div>
+            <div class="pipe-step">Test</div>
+            <div class="pipe-step">Security</div>
+            <div class="pipe-step">Deploy</div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-icon icon-docs">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                </div>
+                <h3>Documentation</h3>
+                <p>Auto-generated from Python source code via Sphinx.</p>
+                <a href="/docs/">Browse docs &rarr;</a>
+            </div>
+            <div class="card">
+                <div class="card-icon icon-ci">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+                <h3>CI/CD Pipeline</h3>
+                <p>GitHub Actions + Coolify. Tests, lint, security, deploy.</p>
+                <a href="https://github.com/CallMeAl3x/flask-cicd-demo/actions" target="_blank">View actions &rarr;</a>
+            </div>
+            <div class="card">
+                <div class="card-icon icon-code">
+                    <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"/></svg>
+                </div>
+                <h3>Source Code</h3>
+                <p>Flask, pytest, Black, Mypy, Bandit, Dependabot.</p>
+                <a href="https://github.com/CallMeAl3x/flask-cicd-demo" target="_blank">View on GitHub &rarr;</a>
+            </div>
+        </div>
+
+        <p class="section-label">API Reference</p>
+        <h2>Endpoints</h2>
+        <div class="endpoints">
+            <div class="endpoint">
+                <span class="tag tag-get">GET</span>
+                <span class="endpoint-path">/health</span>
+                <span class="endpoint-desc">Health check</span>
+            </div>
+            <div class="endpoint">
+                <span class="tag tag-get">GET</span>
+                <span class="endpoint-path">/api/tasks</span>
+                <span class="endpoint-desc">List all tasks</span>
+            </div>
+            <div class="endpoint">
+                <span class="tag tag-post">POST</span>
+                <span class="endpoint-path">/api/tasks</span>
+                <span class="endpoint-desc">Create a task</span>
+            </div>
+            <div class="endpoint">
+                <span class="tag tag-put">PUT</span>
+                <span class="endpoint-path">/api/tasks/:id</span>
+                <span class="endpoint-desc">Update a task</span>
+            </div>
+            <div class="endpoint">
+                <span class="tag tag-delete">DELETE</span>
+                <span class="endpoint-path">/api/tasks/:id</span>
+                <span class="endpoint-desc">Delete a task</span>
+            </div>
+        </div>
+
+        <p class="section-label">Interactive</p>
+        <h2>Live Demo <span class="count" id="task-count"></span></h2>
+        <div class="demo">
+            <div class="input-row">
+                <input type="text" id="task-title" placeholder="What needs to be done?" onkeydown="if(event.key==='Enter')addTask()">
+                <button class="btn" onclick="addTask()">Add</button>
+            </div>
+            <ul id="task-list">
+                <li class="empty-state">No tasks yet. Add one above.</li>
+            </ul>
+        </div>
+
+        <footer>
+            <p>Flask &middot; GitHub Actions &middot; Coolify &middot; <a href="https://github.com/CallMeAl3x/flask-cicd-demo">CallMeAl3x/flask-cicd-demo</a></p>
+        </footer>
+    </div>
+
+    <script>
+        const API = '/api/tasks';
+
+        async function loadTasks() {
+            const res = await fetch(API);
+            const data = await res.json();
+            const list = document.getElementById('task-list');
+            const count = document.getElementById('task-count');
+            count.textContent = data.count > 0 ? data.count + ' task' + (data.count > 1 ? 's' : '') : '';
+            if (data.tasks.length === 0) {
+                list.innerHTML = '<li class="empty-state">No tasks yet. Add one above.</li>';
+                return;
+            }
+            list.innerHTML = data.tasks.map(t => `
+                <li>
+                    <span class="task-id">#${t.id}</span>
+                    <span class="task-title ${t.done ? 'task-done' : ''}">${escapeHtml(t.title)}</span>
+                    <div class="task-actions">
+                        <button class="btn-sm btn-done" onclick="toggleTask(${t.id}, ${!t.done})">${t.done ? 'Undo' : 'Done'}</button>
+                        <button class="btn-sm btn-del" onclick="deleteTask(${t.id})">Del</button>
+                    </div>
+                </li>
+            `).join('');
+        }
+
+        function escapeHtml(str) {
+            const d = document.createElement('div');
+            d.textContent = str;
+            return d.innerHTML;
+        }
+
+        async function addTask() {
+            const input = document.getElementById('task-title');
+            const title = input.value.trim();
+            if (!title) return;
+            await fetch(API, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({title})
+            });
+            input.value = '';
+            loadTasks();
+        }
+
+        async function toggleTask(id, done) {
+            await fetch(`${API}/${id}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({done})
+            });
+            loadTasks();
+        }
+
+        async function deleteTask(id) {
+            await fetch(`${API}/${id}`, {method: 'DELETE'});
+            loadTasks();
+        }
+
+        loadTasks();
+    </script>
+</body>
+</html>
