@@ -11,6 +11,9 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.viewcode",
     "sphinx.ext.napoleon",
+    "sphinxcontrib.httpdomain",
+    "sphinxcontrib.autohttp.flask",
+    "sphinxcontrib.autohttp.flaskqref",
 ]
 
 templates_path = ["_templates"]
@@ -18,6 +21,9 @@ exclude_patterns = ["_build"]
 
 autodoc_member_order = "bysource"
 autodoc_typehints = "description"
+
+# Group HTTP endpoints by their :quickref: section instead of one flat list.
+http_index_ignore_prefixes = ["/api"]
 
 html_theme = "furo"
 html_static_path = ["_static"]

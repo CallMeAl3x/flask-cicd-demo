@@ -7,19 +7,9 @@ REST API endpoints for task management.
 All API endpoints are prefixed with ``/api`` and return JSON responses.
 Tasks are stored in memory (no database) for simplicity.
 
-Endpoints summary
------------------
-
-====== ===================== ==========================
-Method Endpoint              Description
-====== ===================== ==========================
-GET    ``/``                 Landing page (HTML)
-GET    ``/health``           Health check
-GET    ``/api/tasks``        List all tasks
-POST   ``/api/tasks``        Create a new task
-PUT    ``/api/tasks/<id>``   Update an existing task
-DELETE ``/api/tasks/<id>``   Delete a task
-====== ===================== ==========================
+The rendered HTTP reference (methods, paths, parameters and status codes) is
+generated automatically from these routes by ``sphinxcontrib-httpdomain``; the
+``:quickref:`` line in each view feeds the endpoint summary table.
 """
 
 import os
@@ -45,6 +35,8 @@ TASKS: list[dict[str, Any]] = []
 def index() -> str:
     """Render the landing page with live task demo.
 
+    .. :quickref: Pages; Landing page with live task demo
+
     :returns: HTML page.
     """
     config_name = os.environ.get("FLASK_ENV", "production").capitalize()
@@ -54,6 +46,8 @@ def index() -> str:
 @api.route("/health")
 def health() -> Response:
     """Health check endpoint.
+
+    .. :quickref: System; Liveness/health probe used by deploys
 
     Used by deployment pipelines to verify the application is
     running correctly after a deploy.
@@ -68,6 +62,8 @@ def health() -> Response:
 @api.route("/docs/<path:filename>")
 def docs(filename: str = "index.html") -> Response:
     """Serve the Sphinx auto-generated documentation.
+
+    .. :quickref: Docs; Serve the built Sphinx documentation
 
     The documentation is built during the Docker image build
     and served as static files.
@@ -85,6 +81,8 @@ def docs(filename: str = "index.html") -> Response:
 def get_tasks() -> Response:
     """List all tasks.
 
+    .. :quickref: Tasks; List all tasks
+
     :returns: JSON with ``tasks`` (list) and ``count`` (int).
     :status 200: Always.
     """
@@ -94,6 +92,8 @@ def get_tasks() -> Response:
 @api.route("/api/tasks", methods=["POST"])
 def create_task() -> tuple[Response, int]:
     """Create a new task.
+
+    .. :quickref: Tasks; Create a new task
 
     Expects a JSON body with a ``title`` field.
 
@@ -122,6 +122,8 @@ def create_task() -> tuple[Response, int]:
 def update_task(task_id: int) -> tuple[Response, int] | Response:
     """Update an existing task.
 
+    .. :quickref: Tasks; Update an existing task
+
     Accepts optional ``title`` (str) and ``done`` (bool) fields
     in the JSON body. Only provided fields are updated.
 
@@ -146,6 +148,8 @@ def update_task(task_id: int) -> tuple[Response, int] | Response:
 @api.route("/api/tasks/<int:task_id>", methods=["DELETE"])
 def delete_task(task_id: int) -> tuple[Response, int]:
     """Delete a task.
+
+    .. :quickref: Tasks; Delete a task
 
     :param task_id: The ID of the task to delete.
     :returns: Confirmation message.
