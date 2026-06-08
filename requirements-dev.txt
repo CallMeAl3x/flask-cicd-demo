@@ -5,7 +5,6 @@ flake8==7.2.0
 black==25.1.0
 isort==6.0.1
 bandit==1.8.3
-safety==3.3.1
 mypy==1.15.0
 sphinx==8.2.3
 furo==2024.8.6
