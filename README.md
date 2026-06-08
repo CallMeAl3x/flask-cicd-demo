@@ -1,8 +1,5 @@
 # Flask CI/CD Demo
 
-![CI](https://github.com/CallMeAl3x/flask-cicd-demo/actions/workflows/ci.yml/badge.svg)
-![Docs](https://github.com/CallMeAl3x/flask-cicd-demo/actions/workflows/docs.yml/badge.svg)
-
 A simple Flask REST API with a complete CI/CD pipeline using GitHub Actions.
 
 ## Architecture
