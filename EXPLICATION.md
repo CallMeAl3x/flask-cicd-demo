@@ -56,12 +56,12 @@ L'API expose 6 endpoints CRUD pour gerer des taches :
 
 | Methode | Endpoint | Description | Code retour |
 |---------|----------|-------------|-------------|
-| `GET` | `/` | Info de l'API | 200 |
+| `GET` | `/` | Page d'accueil (HTML) | 200 |
 | `GET` | `/health` | Health check | 200 |
-| `GET` | `/tasks` | Lister les taches | 200 |
-| `POST` | `/tasks` | Creer une tache | 201 / 400 |
-| `PUT` | `/tasks/<id>` | Modifier une tache | 200 / 404 |
-| `DELETE` | `/tasks/<id>` | Supprimer une tache | 200 / 404 |
+| `GET` | `/api/tasks` | Lister les taches | 200 |
+| `POST` | `/api/tasks` | Creer une tache | 201 / 400 |
+| `PUT` | `/api/tasks/<id>` | Modifier une tache | 200 / 404 |
+| `DELETE` | `/api/tasks/<id>` | Supprimer une tache | 200 / 404 |
 
 Les taches sont stockees en memoire (liste Python). C'est volontairement simple — l'objectif est la CI/CD, pas la persistence.
 
@@ -258,7 +258,7 @@ Le `test_client()` de Flask permet de faire des requetes HTTP sans lancer de ser
 
 ### Ce qui est teste
 
-**12 tests** couvrant **98% du code** :
+**12 tests** couvrant **95% du code** :
 
 - **Config** (3 tests) : verifie que chaque environnement a les bons flags (`DEBUG`, `TESTING`)
 - **Routes** (9 tests) : teste chaque endpoint avec les cas normaux ET les cas d'erreur (404, 400)
@@ -266,11 +266,11 @@ Le `test_client()` de Flask permet de faire des requetes HTTP sans lancer de ser
 Exemples :
 ```python
 def test_create_task(client):
-    response = client.post("/tasks", data=json.dumps({"title": "Test"}), ...)
+    response = client.post("/api/tasks", data=json.dumps({"title": "Test"}), ...)
     assert response.status_code == 201
 
 def test_create_task_missing_title(client):      # ← cas d'erreur
-    response = client.post("/tasks", data=json.dumps({}), ...)
+    response = client.post("/api/tasks", data=json.dumps({}), ...)
     assert response.status_code == 400
 ```
 
@@ -323,43 +323,57 @@ exclude_dirs = ["tests"]        # Les tests peuvent utiliser des patterns "dange
 
 ## 6. Documentation auto-generee
 
-### Comment ca marche
+### Approche : deux couches
 
-**Sphinx** avec l'extension **autodoc** lit les docstrings du code Python et genere une doc HTML automatiquement :
+La doc est generee a **deux niveaux**, tous deux directement depuis le code :
 
-```python
-# app/__init__.py
-"""Flask CI/CD Demo application."""   # ← cette docstring apparait dans la doc
-```
+1. **Reference HTTP** (page `api`) — generee depuis la table de routage Flask par **`sphinxcontrib-httpdomain`** (directive `autoflask`). Elle lit directement les routes : methode, chemin, parametres et codes de statut. Une API REST est ainsi documentee *comme* une API REST, et non comme une simple liste de fonctions Python.
+
+2. **Internals Python** (page `internals`) — la factory `create_app` et les classes de config sont documentees avec l'**autodoc** classique de Sphinx (ce sont de vrais objets Python).
 
 ```rst
 # docs/api.rst
-.. automodule:: app
-   :members:                          # ← genere la doc de tous les membres du module
+.. qrefflask:: app:create_app()      # table de synthese des endpoints
+   :undoc-static:
+
+.. autoflask:: app:create_app()      # reference detaillee, lue depuis les routes
+   :undoc-static:
+   :order: path
 ```
 
-### Theme Furo
+La table de synthese est alimentee par les tags `.. :quickref:` places dans les docstrings de chaque route :
 
-Le site utilise le theme **Furo** qui offre :
-- **Dark mode** automatique (suit les preferences systeme)
-- Design moderne et responsive
-- Navigation au clavier
-- Lien GitHub dans le footer
+```python
+@api.route("/api/tasks", methods=["POST"])
+def create_task():
+    """Create a new task.
+
+    .. :quickref: Tasks; Create a new task   # ← regroupe et resume l'endpoint
+    ...
+    """
+```
+
+### Theme Furo + style personnalise
+
+Le site utilise le theme **Furo** (dark mode automatique, responsive, navigation clavier, lien GitHub en footer). Un fichier **`docs/_static/custom.css`** transforme la sortie brute de httpdomain en style type "Stripe/Redoc" :
+
+- chaque endpoint est une **carte** avec une bordure laterale coloree
+- chaque methode HTTP a un **badge colore** (GET bleu, POST vert, PUT orange, DELETE rouge)
+- les codes de statut (`201 Created`, `404 Not Found`) sont rendus en mini-badges
 
 ### Pages de documentation
 
 | Page | Format | Contenu |
 |------|--------|---------|
 | `index.rst` | RST | Page d'accueil, vue d'ensemble |
-| `architecture.md` | Markdown | Strategie de branches, structure du projet, schema du CI |
-| `api.rst` | RST | Reference API auto-generee depuis le code |
-| `deployment.md` | Markdown | Guide de deploiement, Docker, workflow |
+| `quickstart.rst` | RST | Installation + exemples `curl` par endpoint |
+| `api.rst` | RST | Reference HTTP auto-generee (httpdomain) |
+| `internals.rst` | RST | Factory `create_app` + classes de config (autodoc) |
 
-Le support Markdown est ajoute via **myst-parser** — ca permet de mixer RST (pour autodoc) et Markdown (pour le contenu redige).
+### Construction et publication
 
-### Deploiement de la doc
-
-A chaque push sur `main`, la doc est buildee et deployee automatiquement sur **GitHub Pages** via le workflow `docs.yml`.
+- En **CI** : le job `docs` build la doc avec `sphinx-build -b html docs/ ... -W` (le `-W` fait echouer le build au moindre warning) et l'uploade comme artifact.
+- Dans le **Docker** : la doc est buildee pendant le build de l'image et embarquee ; l'application la sert directement sur la route **`/docs/`**.
 
 ---
 
