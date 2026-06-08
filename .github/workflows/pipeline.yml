@@ -77,12 +77,26 @@ jobs:
       - name: Build Docker image
         run: docker build -t app:${{ github.sha }} .
 
-      - name: Trivy vulnerability scan
+      - name: Trivy vulnerability scan (JSON report)
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: app:${{ github.sha }}
-          format: table
+          format: json
+          output: trivy-report.json
           severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "0"
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.json
+          if-no-files-found: ignore
+
+      - name: Fail on CRITICAL/HIGH vulnerabilities
+        run: python3 .github/scripts/trivy_summary.py trivy-report.json --gate
 
   docs:
     name: Build Docs
@@ -120,6 +134,13 @@ jobs:
         with:
           name: bandit-report
           path: artifacts/security
+        continue-on-error: true
+
+      - name: Download Trivy report
+        uses: actions/download-artifact@v4
+        with:
+          name: trivy-report
+          path: artifacts/trivy
         continue-on-error: true
 
       - name: Build summary
@@ -176,6 +197,11 @@ jobs:
               echo ""
             } >> "$GITHUB_STEP_SUMMARY"
           fi
+
+      - name: Trivy details
+        run: |
+          python3 .github/scripts/trivy_summary.py \
+            artifacts/trivy/trivy-report.json >> "$GITHUB_STEP_SUMMARY"
 
       - name: Fail if any required stage failed
         if: contains(needs.*.result, 'failure')
