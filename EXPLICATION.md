@@ -197,7 +197,11 @@ Le rapport JSON est aussi uploade comme artifact.
 - Vulnerabilites dans les librairies systeme de l'image Docker (`python:3.12-slim`)
 - Mauvaises configurations du Dockerfile
 
-Le job build l'image Docker puis la scanne pour les vulnerabilites **CRITICAL** et **HIGH**.
+Le job build l'image Docker puis la scanne pour les vulnerabilites **CRITICAL** et **HIGH**. Le scan genere un rapport **JSON**, puis une etape de **gate fait echouer le job** si au moins une vulnerabilite est trouvee — une CVE dans une dependance **bloque donc le merge et le deploy**. L'option `ignore-unfixed: true` limite le blocage aux CVE **corrigeables** (celles sans patch disponible n'arretent pas la pipeline).
+
+Le detail des CVE (package, version, severite, CVE, version corrigee) est repris dans le **Pipeline Report** (voir Job 6), pas seulement dans les logs.
+
+> Note : `safety` (l'equivalent de `npm audit` pour `requirements.txt`) n'est volontairement pas utilise — la couverture CVE des dependances est deja assuree par Trivy (scan de l'image) et **Dependabot**.
 
 #### Job 5 : Documentation
 
@@ -209,6 +213,17 @@ Le job build l'image Docker puis la scanne pour les vulnerabilites **CRITICAL** 
 ```
 
 Le flag `-W` fait echouer le build si la doc contient des warnings — ca force a maintenir une doc propre.
+
+#### Job 6 : Pipeline Report
+
+Ce job tourne **apres** les 5 autres (`needs: [...]`, `if: always()`) et **agrege** tous les resultats dans le **step summary** de GitHub Actions (`$GITHUB_STEP_SUMMARY`), visible sur la page du run (onglet *Summary*, pas dans les logs) :
+
+- un tableau recapitulatif du statut de chaque job (✅/❌) ;
+- la **couverture de tests** (lue depuis `coverage.xml`) ;
+- le nombre de findings **Bandit** ;
+- le **detail des CVE Trivy** (package, version, severite, CVE, version corrigee), via le script `.github/scripts/trivy_summary.py`.
+
+Une derniere etape fait **echouer la pipeline** si l'un des jobs requis a echoue — le report reste donc toujours genere (meme en cas d'echec), ce qui permet de voir *pourquoi* ca a casse.
 
 ### Jobs de deploiement (conditionnels)
 
