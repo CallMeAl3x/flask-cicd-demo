@@ -116,7 +116,7 @@ jobs:
 
   report:
     name: Pipeline Report
-    needs: [lint, test, security, trivy, docs]
+    needs: [lint, test, security, trivy, docs, build-push, deploy-k8s]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -150,6 +150,8 @@ jobs:
           R_SECURITY: ${{ needs.security.result }}
           R_TRIVY: ${{ needs.trivy.result }}
           R_DOCS: ${{ needs.docs.result }}
+          R_BUILD: ${{ needs.build-push.result }}
+          R_DEPLOY: ${{ needs.deploy-k8s.result }}
         run: |
           icon() { case "$1" in
             success) echo "✅ success" ;;
@@ -172,6 +174,8 @@ jobs:
             echo "| Security Scan | $(icon "$R_SECURITY") |"
             echo "| Trivy Container Scan | $(icon "$R_TRIVY") |"
             echo "| Build Docs | $(icon "$R_DOCS") |"
+            echo "| Build & Push Image | $(icon "$R_BUILD") |"
+            echo "| Deploy to Kubernetes | $(icon "$R_DEPLOY") |"
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -238,3 +242,58 @@ jobs:
             "${{ secrets.COOLIFY_PROD_WEBHOOK }}")
           echo "HTTP $HTTP_CODE"
           echo "Coolify production deploy triggered for ${{ github.sha }}"
+
+  build-push:
+    name: Build & Push Image
+    needs: [lint, test, security, trivy]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/callmeal3x/flask-cicd-demo:latest
+            ghcr.io/callmeal3x/flask-cicd-demo:${{ github.sha }}
+
+  deploy-k8s:
+    name: Deploy to Kubernetes
+    needs: [build-push]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install doctl
+        uses: digitalocean/action-doctl@v2
+        with:
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Save kubeconfig
+        run: doctl kubernetes cluster kubeconfig save flask-cluster --expiry-seconds 600
+
+      - name: Apply manifests
+        run: kubectl apply -k k8s/
+
+      - name: Roll out the freshly built image
+        run: |
+          kubectl set image deployment/flask-app \
+            flask-app=ghcr.io/callmeal3x/flask-cicd-demo:${{ github.sha }}
+
+      - name: Wait for rollout to succeed
+        run: kubectl rollout status deployment/flask-app --timeout=120s

@@ -25,7 +25,24 @@ Every push and PR triggers:
 
 Deployment flows:
 - Push to `staging` → CI + deploy to staging
-- Push to `main` → CI + deploy to production
+- Push to `main` → CI + deploy to production + **deploy to Kubernetes (DigitalOcean)**
+
+### Kubernetes Deployment
+
+On every push to `main`, the image is built and pushed to **GHCR**
+(`ghcr.io/callmeal3x/flask-cicd-demo`), then deployed to a managed **DigitalOcean Kubernetes** cluster
+(2 replicas, `LoadBalancer` service, liveness/readiness probes on `/health`). The `deploy-k8s` job waits
+for `kubectl rollout status` to confirm success.
+
+```bash
+# Manifests live in k8s/ — test them on a local cluster (minikube/kind):
+kubectl apply -k k8s/
+kubectl get pods
+kubectl port-forward svc/flask-app 5000:80
+curl localhost:5000/health   # {"status":"healthy"}
+```
+
+Cluster setup is documented in [`k8s/SETUP-DIGITALOCEAN.md`](k8s/SETUP-DIGITALOCEAN.md).
 
 ## Local Development
 

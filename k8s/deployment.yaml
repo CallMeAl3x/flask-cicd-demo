@@ -1,0 +1,44 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-app
+  labels:
+    app: flask-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: flask-app
+  template:
+    metadata:
+      labels:
+        app: flask-app
+    spec:
+      containers:
+        - name: flask-app
+          # Le tag est patché au SHA du commit par la CI (kustomize edit set image).
+          image: ghcr.io/callmeal3x/flask-cicd-demo:latest
+          ports:
+            - containerPort: 5000
+          env:
+            - name: FLASK_ENV
+              value: production
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 3
+            periodSeconds: 5
