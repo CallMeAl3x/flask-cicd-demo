@@ -16,12 +16,16 @@ main (production) ← staging ← feature branches
 | `staging` | Pre-production testing | Auto-deploy to staging |
 | `feature/*` | Development | CI only (lint + test + security) |
 
-### CI/CD Pipeline
+### CI/CD Pipeline — 6 stages
 
-Every push and PR triggers:
-- **Lint**: Black, isort, Flake8, Mypy
-- **Test**: pytest with coverage (Python 3.11 & 3.12)
-- **Security**: Bandit static analysis
+| Stage | Tools |
+|-------|-------|
+| 🏗️ **Build** | Docker image → GHCR |
+| 📐 **Measure** | Black, isort, Flake8, Mypy, radon (complexity) |
+| 📚 **Document** | Sphinx + httpdomain |
+| 🧪 **Test** | pytest with coverage (Python 3.11 & 3.12) |
+| 🔒 **Secure** | Bandit (SAST), Trivy (vulnerabilities), Gitleaks (secrets) |
+| 🚀 **Deploy** | Kubernetes (DigitalOcean) + Coolify |
 
 Deployment flows:
 - Push to `staging` → CI + deploy to staging
