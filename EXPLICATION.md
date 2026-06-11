@@ -228,6 +228,49 @@ deploy-production:
 
 Le deploiement se fait via un **webhook Coolify** — un simple appel HTTP authentifie qui declenche le redeploy cote serveur. Les secrets (`COOLIFY_API_TOKEN`, `COOLIFY_PROD_WEBHOOK`, `COOLIFY_WEBHOOK_STAGING`) sont stockes dans les environments GitHub.
 
+### Deploiement Kubernetes (DigitalOcean)
+
+En plus de Coolify, le projet deploie l'application sur un **cluster Kubernetes manage** (DigitalOcean Kubernetes / DOKS). C'est un deploiement "container-natif" : l'image est publiee dans un registry puis appliquee au cluster.
+
+**Le flux sur un push `main` :**
+
+```
+build-push  →  deploy-k8s
+(GHCR)         (DOKS)
+```
+
+| Job | Role |
+|-----|------|
+| **build-push** | Construit l'image Docker et la pousse sur **GHCR** (`ghcr.io/callmeal3x/flask-cicd-demo`), taggee `:latest` et `:<sha>`. Auth via le `GITHUB_TOKEN` integre (permission `packages: write`). |
+| **deploy-k8s** | Recupere le kubeconfig via `doctl` (secret `DIGITALOCEAN_ACCESS_TOKEN`), applique les manifests `k8s/`, pointe le deployment sur l'image `:<sha>` et **attend la fin du rollout**. |
+
+**Les manifests (`k8s/`) :**
+
+| Fichier | Contenu |
+|---------|---------|
+| `deployment.yaml` | 2 replicas, `livenessProbe` + `readinessProbe` sur `/health`, limites CPU/RAM, `FLASK_ENV=production` |
+| `service.yaml` | `Service` type `LoadBalancer` → IP publique externe (port 80 → 5000) |
+| `kustomization.yaml` | regroupe les manifests et permet de patcher le tag d'image |
+| `SETUP-DIGITALOCEAN.md` | guide de creation du cluster (a faire une fois) |
+
+**Pourquoi c'est un vrai deploiement K8s :**
+
+```yaml
+- name: Wait for rollout to succeed
+  run: kubectl rollout status deployment/flask-app --timeout=120s
+```
+
+Le job ne reussit que si Kubernetes confirme que les nouveaux pods sont `Ready` (probes sur `/health` OK). Les 2 replicas + le `ReplicaSet` donnent l'**auto-healing** : si un pod meurt, il est recree automatiquement.
+
+**Tester en local** (minikube / kind) :
+
+```bash
+kubectl apply -k k8s/
+kubectl get pods                          # 2 pods Running
+kubectl port-forward svc/flask-app 5000:80
+curl localhost:5000/health                # {"status":"healthy"}
+```
+
 ---
 
 ## 4. Les tests
