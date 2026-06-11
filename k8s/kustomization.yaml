@@ -1,0 +1,12 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - deployment.yaml
+  - service.yaml
+
+# La CI met à jour ce tag au SHA du commit via :
+#   kustomize edit set image ghcr.io/callmeal3x/flask-cicd-demo=ghcr.io/callmeal3x/flask-cicd-demo:<sha>
+images:
+  - name: ghcr.io/callmeal3x/flask-cicd-demo
+    newTag: latest
