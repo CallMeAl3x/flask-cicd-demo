@@ -148,13 +148,26 @@ Chaque job n'a plus qu'a faire :
 
 **Push ou PR** sur `main` et `staging` — un seul trigger pour tout.
 
+### Les 6 stages obligatoires
+
+La pipeline couvre les **6 stages CI/CD** demandes. Chaque stage correspond a un ou plusieurs jobs GitHub Actions :
+
+| Stage | Job(s) | Outils |
+|-------|--------|--------|
+| 🏗️ **Build** | `Build (Docker image)` | Docker build + push sur GHCR |
+| 📐 **Measure** | `Measure (Quality & Complexity)` | Black, isort, Flake8, Mypy, **radon** (complexite) |
+| 📚 **Document** | `Document (Sphinx)` | Sphinx + sphinxcontrib-httpdomain |
+| 🧪 **Test** | `Test` | pytest + couverture (Python 3.11 & 3.12) |
+| 🔒 **Secure** | `Secure (SAST)`, `Secure (Vulnerabilities)`, `Secure (Secrets)` | Bandit, Trivy, **Gitleaks** |
+| 🚀 **Deploy** | `Deploy (Kubernetes)`, `Deploy (Coolify)` | doctl + kubectl, webhook Coolify |
+
+Le job `Pipeline Report` agrege ensuite les resultats des 6 stages dans un tableau de synthese.
+
 ### Jobs CI (en parallele)
 
-La pipeline execute **5 jobs en parallele** :
+#### Measure — Qualite & complexite du code
 
-#### Job 1 : Code Quality (lint)
-
-Verifie la qualite du code sans l'executer :
+Verifie la qualite du code sans l'executer, et collecte des **metriques** :
 
 | Outil | Role | Ce qu'il verifie |
 |-------|------|-----------------|
@@ -162,8 +175,10 @@ Verifie la qualite du code sans l'executer :
 | **isort** | Tri des imports | Les imports sont-ils tries et groupes correctement ? |
 | **Flake8** | Linter | Erreurs de style PEP8, variables inutilisees, imports manquants |
 | **Mypy** | Type checker | Les annotations de type sont-elles coherentes ? |
+| **radon** | Metriques | Complexite cyclomatique + indice de maintenabilite (affiches dans le report) |
+| **xenon** | Gate complexite | Echoue si une fonction depasse le grade B, ou la moyenne le grade A |
 
-#### Job 2 : Tests
+#### Test
 
 Execute les tests sur **2 versions de Python** (3.11 et 3.12) grace a une **matrix strategy** :
 
@@ -177,7 +192,7 @@ Cela cree 2 jobs paralleles, un par version. Si les tests passent sur 3.11 mais 
 
 Les tests sont executes avec **pytest** et generent un **rapport de couverture** (coverage). Le rapport est uploade comme **artifact** GitHub Actions (telechargeable depuis l'interface).
 
-#### Job 3 : Security Scan
+#### Secure 1/3 — SAST (Bandit)
 
 **Bandit** analyse statiquement le code Python pour detecter des failles de securite courantes :
 
@@ -189,7 +204,7 @@ Les tests sont executes avec **pytest** et generent un **rapport de couverture**
 
 Le rapport JSON est aussi uploade comme artifact.
 
-#### Job 4 : Trivy Container Scan
+#### Secure 2/3 — Vulnerabilites (Trivy)
 
 **Trivy** complete Bandit en scannant l'**image Docker** plutot que le code source. Il detecte :
 
@@ -199,7 +214,17 @@ Le rapport JSON est aussi uploade comme artifact.
 
 Le job build l'image Docker puis la scanne pour les vulnerabilites **CRITICAL** et **HIGH**.
 
-#### Job 5 : Documentation
+#### Secure 3/3 — Secrets (Gitleaks)
+
+**Gitleaks** scanne tout l'**historique git** pour detecter des secrets commites par erreur :
+
+- Cles API, tokens, mots de passe en dur
+- Cles privees SSH/TLS
+- Identifiants cloud (AWS, GCP, etc.)
+
+Le job tourne via l'image Docker officielle `ghcr.io/gitleaks/gitleaks` avec `fetch-depth: 0` (historique complet) et echoue si un secret est trouve. Un rapport SARIF est uploade comme artifact.
+
+#### Document — Documentation (Sphinx)
 
 **Build** la documentation Sphinx a partir du code source et l'uploade comme artifact.
 
@@ -212,7 +237,7 @@ Le flag `-W` fait echouer le build si la doc contient des warnings — ca force 
 
 ### Jobs de deploiement (conditionnels)
 
-Les jobs de deploy **attendent que les 4 jobs CI passent** (`needs: [lint, test, security, trivy]`) et ne s'executent que sur les push (pas les PR) :
+Les jobs de deploy **attendent que tous les jobs CI passent** (`needs: [measure, test, security, trivy, gitleaks]`) et ne s'executent que sur les push (pas les PR) :
 
 | Job | Condition | Environnement | Action |
 |-----|-----------|---------------|--------|

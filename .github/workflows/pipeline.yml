@@ -7,8 +7,8 @@ on:
     branches: [main, staging]
 
 jobs:
-  lint:
-    name: Code Quality
+  measure:
+    name: Measure (Quality & Complexity)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -26,8 +26,26 @@ jobs:
       - name: Mypy (type checking)
         run: mypy app/
 
+      - name: Radon (cyclomatic complexity & maintainability)
+        run: |
+          {
+            echo "## 📐 Code metrics (radon)"
+            echo ""
+            echo "### Cyclomatic complexity"
+            echo '```'
+            radon cc app/ -a -s
+            echo '```'
+            echo "### Maintainability index"
+            echo '```'
+            radon mi app/ -s
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Xenon (complexity gate)
+        run: xenon --max-absolute B --max-modules A --max-average A app/
+
   test:
-    name: Tests
+    name: Test
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -49,7 +67,7 @@ jobs:
           path: coverage.xml
 
   security:
-    name: Security Scan
+    name: Secure (SAST - Bandit)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -69,7 +87,7 @@ jobs:
           if-no-files-found: ignore
 
   trivy:
-    name: Trivy Container Scan
+    name: Secure (Vulnerabilities - Trivy)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -98,8 +116,30 @@ jobs:
       - name: Fail on CRITICAL/HIGH vulnerabilities
         run: python3 .github/scripts/trivy_summary.py trivy-report.json --gate
 
+  gitleaks:
+    name: Secure (Secrets - Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so Gitleaks scans every commit
+
+      - name: Gitleaks (secret scanning)
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:latest \
+            detect --source=/repo --redact --verbose \
+            --report-format sarif --report-path /repo/gitleaks-report.sarif
+
+      - name: Upload Gitleaks report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: gitleaks-report.sarif
+          if-no-files-found: ignore
+
   docs:
-    name: Build Docs
+    name: Document (Sphinx)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -116,7 +156,7 @@ jobs:
 
   report:
     name: Pipeline Report
-    needs: [lint, test, security, trivy, docs, build-push, deploy-k8s]
+    needs: [measure, test, security, trivy, gitleaks, docs, build-push, deploy-k8s]
     if: always()
     runs-on: ubuntu-latest
     steps:
@@ -145,10 +185,11 @@ jobs:
 
       - name: Build summary
         env:
-          R_LINT: ${{ needs.lint.result }}
+          R_MEASURE: ${{ needs.measure.result }}
           R_TEST: ${{ needs.test.result }}
           R_SECURITY: ${{ needs.security.result }}
           R_TRIVY: ${{ needs.trivy.result }}
+          R_SECRETS: ${{ needs.gitleaks.result }}
           R_DOCS: ${{ needs.docs.result }}
           R_BUILD: ${{ needs.build-push.result }}
           R_DEPLOY: ${{ needs.deploy-k8s.result }}
@@ -165,17 +206,18 @@ jobs:
             echo ""
             echo "Commit: \`${{ github.sha }}\` on \`${{ github.ref_name }}\`"
             echo ""
-            echo "## Job results"
+            echo "## 6 stages CI/CD"
             echo ""
-            echo "| Stage | Result |"
-            echo "| --- | --- |"
-            echo "| Code Quality | $(icon "$R_LINT") |"
-            echo "| Tests | $(icon "$R_TEST") |"
-            echo "| Security Scan | $(icon "$R_SECURITY") |"
-            echo "| Trivy Container Scan | $(icon "$R_TRIVY") |"
-            echo "| Build Docs | $(icon "$R_DOCS") |"
-            echo "| Build & Push Image | $(icon "$R_BUILD") |"
-            echo "| Deploy to Kubernetes | $(icon "$R_DEPLOY") |"
+            echo "| Stage | Job | Result |"
+            echo "| --- | --- | --- |"
+            echo "| 🏗️ Build | Docker image → GHCR | $(icon "$R_BUILD") |"
+            echo "| 📐 Measure | Black/isort/Flake8/Mypy + radon | $(icon "$R_MEASURE") |"
+            echo "| 📚 Document | Sphinx | $(icon "$R_DOCS") |"
+            echo "| 🧪 Test | pytest (3.11 & 3.12) | $(icon "$R_TEST") |"
+            echo "| 🔒 Secure | Bandit (SAST) | $(icon "$R_SECURITY") |"
+            echo "| 🔒 Secure | Trivy (vulnérabilités) | $(icon "$R_TRIVY") |"
+            echo "| 🔒 Secure | Gitleaks (secrets) | $(icon "$R_SECRETS") |"
+            echo "| 🚀 Deploy | Kubernetes (DigitalOcean) | $(icon "$R_DEPLOY") |"
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
 
@@ -214,8 +256,8 @@ jobs:
           exit 1
 
   deploy-staging:
-    name: Deploy to Staging
-    needs: [lint, test, security, trivy]
+    name: Deploy (Staging - Coolify)
+    needs: [measure, test, security, trivy, gitleaks]
     if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
     runs-on: ubuntu-latest
     environment: staging
@@ -229,8 +271,8 @@ jobs:
           echo "Coolify staging deploy triggered for ${{ github.sha }}"
 
   deploy-production:
-    name: Deploy to Production
-    needs: [lint, test, security, trivy]
+    name: Deploy (Production - Coolify)
+    needs: [measure, test, security, trivy, gitleaks]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: production
@@ -244,8 +286,8 @@ jobs:
           echo "Coolify production deploy triggered for ${{ github.sha }}"
 
   build-push:
-    name: Build & Push Image
-    needs: [lint, test, security, trivy]
+    name: Build (Docker image)
+    needs: [measure, test, security, trivy, gitleaks]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -271,7 +313,7 @@ jobs:
             ghcr.io/callmeal3x/flask-cicd-demo:${{ github.sha }}
 
   deploy-k8s:
-    name: Deploy to Kubernetes
+    name: Deploy (Kubernetes)
     needs: [build-push]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
